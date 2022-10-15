@@ -2,8 +2,16 @@
 # originally authored by Kyle C. Rodman, Ecological Restoration Institute, NAU 
 # translational author: Zachary Hoylman, zachary.hoylman@umontana.edu 
 
+# set up conda enviorment
+# conda create --name gee      # Create a conda environment
+# conda activate gee# Activate the environment
+# conda install python=3.7
+# conda install -c conda-forge earthengine-api # Install the Earth Engine Python API
+# earthengine authenticate          # Authenticate your access with the command line tool
+# conda install pandas
+# conda install numpy
+
 library(reticulate)
-library(rgee)
 library(cptcity)
 library(raster)
 library(stars)
@@ -11,9 +19,11 @@ library(sf)
 library(tidyverse)
 
 #set up enviorment
-use_condaenv("gee-base", conda = "auto",required = TRUE)
+use_condaenv("gee", conda = "auto",required = TRUE)
 ee = import("ee")
-ee_Initialize(user = 'zhoylman@gmail.com', drive = TRUE)
+#crashes rstudio if you load this before initiating the conda enviorment??
+library(rgee)
+ee_Initialize(drive = TRUE)
 
 # Pulling in Landsat data, creating composite, and identifying survivors
 # Harmonization function and image composite functions from LandTrendr source code 
@@ -61,4 +71,17 @@ getSRcollection = function(year, startDay, endDay, sensor, aoi) {
     return(dat$mask(mask)) #apply the mask - 0's in mask will be excluded from computation and set to opacity=0 in display
   })
   return(srCollection); # return the prepared collection
+}
+
+# Function to merge LS collections to create mosaic by year
+getCombinedSRcollection = function(year, startDay, endDay, aoi) {
+  var lt5 = getSRcollection(year, startDay, endDay, 'LT05', aoi)       # get TM collection for a given year, date range, and area
+  var lc8 = getSRcollection(year, startDay, endDay, 'LC08', aoi)
+  if((year < 2003)||(year == 2012)){                                      # Getting LS7 only if pre-SLC failure or if 2012 is needed (gap b/w 5 and 8)
+    var le7 = getSRcollection(year, startDay, endDay, 'LE07', aoi)       # get ETM+ collection for a given year, date range, and area
+    var mergedCollection = ee.ImageCollection(lt5.merge(le7).merge(lc8)) # merge the individual sensor collections into one imageCollection object
+  }else{
+    var mergedCollection = ee.ImageCollection(lt5.merge(lc8))
+  }
+  return mergedCollection                                              # return the Imagecollection
 }
